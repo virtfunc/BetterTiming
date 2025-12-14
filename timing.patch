@@ -1,8 +1,8 @@
 diff --git a/arch/x86/include/asm/kvm_host.h b/arch/x86/include/asm/kvm_host.h
-index 32ae3aa50..fa8b87b89 100644
+index 974d64bf0..ae0e8e4e9 100644
 --- a/arch/x86/include/asm/kvm_host.h
 +++ b/arch/x86/include/asm/kvm_host.h
-@@ -2133,6 +2133,7 @@ int kvm_emulate_halt(struct kvm_vcpu *vcpu);
+@@ -2201,6 +2201,7 @@ int kvm_emulate_halt(struct kvm_vcpu *vcpu);
  int kvm_emulate_halt_noskip(struct kvm_vcpu *vcpu);
  int kvm_emulate_ap_reset_hold(struct kvm_vcpu *vcpu);
  int kvm_emulate_wbinvd(struct kvm_vcpu *vcpu);
@@ -11,62 +11,42 @@ index 32ae3aa50..fa8b87b89 100644
  void kvm_get_segment(struct kvm_vcpu *vcpu, struct kvm_segment *var, int seg);
  void kvm_set_segment(struct kvm_vcpu *vcpu, struct kvm_segment *var, int seg);
 diff --git a/arch/x86/kvm/cpuid.c b/arch/x86/kvm/cpuid.c
-index 9b92f3f56..0ac9367e2 100644
+index 52524e0ca..4f1fa7c89 100644
 --- a/arch/x86/kvm/cpuid.c
 +++ b/arch/x86/kvm/cpuid.c
-@@ -2030,7 +2030,9 @@ EXPORT_SYMBOL_GPL(kvm_cpuid);
+@@ -2089,6 +2089,7 @@ EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_cpuid);
  
  int kvm_emulate_cpuid(struct kvm_vcpu *vcpu)
  {
 +	vcpu->run->exit_reason = 123;
  	u32 eax, ebx, ecx, edx;
-+	
  
  	if (cpuid_fault_enabled(vcpu) && !kvm_require_cpl(vcpu, 0))
- 		return 1;
-@@ -2038,6 +2040,7 @@ int kvm_emulate_cpuid(struct kvm_vcpu *vcpu)
- 	eax = kvm_rax_read(vcpu);
- 	ecx = kvm_rcx_read(vcpu);
- 	kvm_cpuid(vcpu, &eax, &ebx, &ecx, &edx, false);
-+	//native_cpuid(&eax, &ebx, &ecx, &edx);
- 	kvm_rax_write(vcpu, eax);
- 	kvm_rbx_write(vcpu, ebx);
- 	kvm_rcx_write(vcpu, ecx);
 diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
-index 282c91c6a..959db0bd1 100644
+index f2fa69dd5..b78c9bd3a 100644
 --- a/arch/x86/kvm/svm/svm.c
 +++ b/arch/x86/kvm/svm/svm.c
-@@ -1291,6 +1291,8 @@ static void init_vmcb(struct kvm_vcpu *vcpu)
+@@ -1078,6 +1078,7 @@ static void init_vmcb(struct kvm_vcpu *vcpu, bool init_event)
  	svm_set_intercept(svm, INTERCEPT_XSETBV);
  	svm_set_intercept(svm, INTERCEPT_RDPRU);
  	svm_set_intercept(svm, INTERCEPT_RSM);
 +	svm_set_intercept(svm, INTERCEPT_RDTSC);
-+
  
  	if (!kvm_mwait_in_guest(vcpu->kvm)) {
  		svm_set_intercept(svm, INTERCEPT_MONITOR);
-@@ -3300,6 +3302,8 @@ static int invpcid_interception(struct kvm_vcpu *vcpu)
- 	return kvm_handle_invpcid(vcpu, type, gva);
- }
- 
-+
-+
- static int (*const svm_exit_handlers[])(struct kvm_vcpu *vcpu) = {
- 	[SVM_EXIT_READ_CR0]			= cr_interception,
- 	[SVM_EXIT_READ_CR3]			= cr_interception,
-@@ -3371,6 +3375,7 @@ static int (*const svm_exit_handlers[])(struct kvm_vcpu *vcpu) = {
+@@ -3223,6 +3224,7 @@ static int (*const svm_exit_handlers[])(struct kvm_vcpu *vcpu) = {
  	[SVM_EXIT_RSM]                          = rsm_interception,
  	[SVM_EXIT_AVIC_INCOMPLETE_IPI]		= avic_incomplete_ipi_interception,
  	[SVM_EXIT_AVIC_UNACCELERATED_ACCESS]	= avic_unaccelerated_access_interception,
-+	[SVM_EXIT_RDTSC]                = kvm_emulate_rdtsc,
++	[SVM_EXIT_RDTSC]                	= kvm_emulate_rdtsc,
  #ifdef CONFIG_KVM_AMD_SEV
  	[SVM_EXIT_VMGEXIT]			= sev_handle_vmgexit,
  #endif
 diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
-index 9e57dd990..3e0d651a9 100644
+index e6f2e34ec..1b4b3f6c7 100644
 --- a/arch/x86/kvm/x86.c
 +++ b/arch/x86/kvm/x86.c
-@@ -1271,6 +1271,7 @@ static int __kvm_set_xcr(struct kvm_vcpu *vcpu, u32 index, u64 xcr)
+@@ -1308,6 +1308,7 @@ EXPORT_SYMBOL_FOR_KVM_INTERNAL(__kvm_set_xcr);
  int kvm_emulate_xsetbv(struct kvm_vcpu *vcpu)
  {
  	/* Note, #UD due to CR4.OSXSAVE=0 has priority over the intercept. */
@@ -74,7 +54,7 @@ index 9e57dd990..3e0d651a9 100644
  	if (kvm_x86_call(get_cpl)(vcpu) != 0 ||
  	    __kvm_set_xcr(vcpu, kvm_rcx_read(vcpu), kvm_read_edx_eax(vcpu))) {
  		kvm_inject_gp(vcpu, 0);
-@@ -2067,6 +2068,7 @@ int kvm_emulate_as_nop(struct kvm_vcpu *vcpu)
+@@ -2208,6 +2209,7 @@ int kvm_emulate_as_nop(struct kvm_vcpu *vcpu)
  
  int kvm_emulate_invd(struct kvm_vcpu *vcpu)
  {
@@ -82,7 +62,7 @@ index 9e57dd990..3e0d651a9 100644
  	/* Treat an INVD instruction as a NOP and just skip it. */
  	return kvm_emulate_as_nop(vcpu);
  }
-@@ -4170,6 +4172,9 @@ static int get_msr_mce(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata, bool host)
+@@ -4379,6 +4381,9 @@ static int get_msr_mce(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata, bool host)
  
  int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
  {
@@ -92,12 +72,12 @@ index 9e57dd990..3e0d651a9 100644
  	switch (msr_info->index) {
  	case MSR_IA32_PLATFORM_ID:
  	case MSR_IA32_EBL_CR_POWERON:
-@@ -4236,17 +4241,11 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+@@ -4445,17 +4450,10 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
  		 * return L1's TSC value to ensure backwards-compatible
  		 * behavior for migration.
  		 */
 -		u64 offset, ratio;
- 
+-
 -		if (msr_info->host_initiated) {
 -			offset = vcpu->arch.l1_tsc_offset;
 -			ratio = vcpu->arch.l1_tsc_scaling_ratio;
@@ -113,22 +93,24 @@ index 9e57dd990..3e0d651a9 100644
  		break;
  	}
  	case MSR_IA32_CR_PAT:
-@@ -8240,12 +8239,30 @@ static int kvm_emulate_wbinvd_noskip(struct kvm_vcpu *vcpu)
+@@ -8496,6 +8494,7 @@ static void emulator_invlpg(struct x86_emulate_ctxt *ctxt, ulong address)
  
- int kvm_emulate_wbinvd(struct kvm_vcpu *vcpu)
+ static int kvm_emulate_wbinvd_noskip(struct kvm_vcpu *vcpu)
  {
 +	vcpu->run->exit_reason = 123;
- 	kvm_emulate_wbinvd_noskip(vcpu);
- 	return kvm_skip_emulated_instruction(vcpu);
+ 	if (!need_emulate_wbinvd(vcpu))
+ 		return X86EMUL_CONTINUE;
+ 
+@@ -8518,7 +8517,24 @@ int kvm_emulate_wbinvd(struct kvm_vcpu *vcpu)
  }
- EXPORT_SYMBOL_GPL(kvm_emulate_wbinvd);
+ EXPORT_SYMBOL_FOR_KVM_INTERNAL(kvm_emulate_wbinvd);
  
 +int kvm_emulate_rdtsc(struct kvm_vcpu *vcpu)
 +{
 +	u64 differece;
 +	u64 final_time;
 +	u64 data;
-+	
++
 +	differece = rdtsc() - vcpu->last_exit_start;
 +	final_time = vcpu->total_exit_time + differece;
 +
@@ -144,7 +126,7 @@ index 9e57dd990..3e0d651a9 100644
  
  static void emulator_wbinvd(struct x86_emulate_ctxt *ctxt)
  {
-@@ -10701,7 +10718,7 @@ static void kvm_vcpu_reload_apic_access_page(struct kvm_vcpu *vcpu)
+@@ -11046,7 +11062,7 @@ static void kvm_vcpu_reload_apic_access_page(struct kvm_vcpu *vcpu)
   * exiting to the userspace.  Otherwise, the value will be returned to the
   * userspace.
   */
@@ -153,11 +135,11 @@ index 9e57dd990..3e0d651a9 100644
  {
  	int r;
  	bool req_int_win =
-@@ -11111,6 +11128,24 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
+@@ -11484,6 +11500,24 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
  	return r;
  }
  
-+static int vcpu_enter_guest(struct kvm_vcpu *vcpu) 
++static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 +{
 +	int result;
 +	u64 difference;
@@ -166,7 +148,7 @@ index 9e57dd990..3e0d651a9 100644
 +
 +	result = vcpu_enter_guest_real(vcpu);
 +
-+	if (vcpu->run->exit_reason == 123) 
++	if (vcpu->run->exit_reason == 123)
 +	{
 +		difference = rdtsc() - vcpu->last_exit_start;
 +		vcpu->total_exit_time += difference;
@@ -179,10 +161,10 @@ index 9e57dd990..3e0d651a9 100644
  {
  	return (vcpu->arch.mp_state == KVM_MP_STATE_RUNNABLE &&
 diff --git a/include/linux/kvm_host.h b/include/linux/kvm_host.h
-index be7e1cd51..69756c939 100644
+index 5bd76cf39..7d2715f82 100644
 --- a/include/linux/kvm_host.h
 +++ b/include/linux/kvm_host.h
-@@ -348,6 +348,9 @@ struct kvm_vcpu {
+@@ -352,6 +352,9 @@ struct kvm_vcpu {
  	unsigned int halt_poll_ns;
  	bool valid_wakeup;
  
