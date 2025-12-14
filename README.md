@@ -19,7 +19,7 @@ cd linux-6.14.9
 ```
 2.) Download the patch
 ```
-git clone https://github.com/vanishingfork/BetterTiming
+git clone <repo url>
 mv BetterTiming/timing.patch timing.patch
 ```
 3.) Apply patch
