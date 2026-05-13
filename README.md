@@ -1,5 +1,6 @@
 # BetterTiming (6.18.1)
 (2026 update: this method is no longer optimal as intercepting rdtsc is very performance costly, consider using a tsc offset in the vmcb)
+
 This is a small project aiming to improve CPU timing in KVM SVM implementation to bypass certain anti-VM checks. It saves vm-exit times and then uses them to offest TSC.
 
 
